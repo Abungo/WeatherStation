@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0,maximum-scale=1, minimum-scale=1, user-scalable=no"">
+    <title>Temperature and Humidity Chart</title>
+    <style>
+        #myChart {
+            max-height: 60vh;
+        }
+        #wrapper{
+            display:flex;
+            justify-content: center;
+            align-items: center;
+            padding:10px;
+        }
+        .container{
+            max-height:100px;
+            flex: 1;
+            margin: 10px;
+            max-width: 100px;
+        }
+    </style>
+    <!-- Include Chart.js library -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="progressBar.min.js"></script>
+</head>
+<body>
+    <h4>Weather at Manipur University,Canchipur</h4>
+    <select id="ds" onchange="optionChanged()">
+        <option value="1">All Datapoints</option>
+        <option value="2">Last 10 Datapoints</option>
+        <option value="3">Last Day</option>
+    </select>
+    <input id="dateInput" type="date" onchange="handleDateChange(this.value)">
+    <button id="reset" onclick="resetDate()">Reset Date</button>
+    <div id="wrapper">
+        <div class="container" id="container_temp"></div>
+        <div class="container" id="container_humi"></div>
+        <div class="container" id="container_atmp"></div>
+    </div>
+    <div>
+        
+    </div>
+
+    <canvas id="myChart"></canvas>
+
+    <script>
+        url = new URL('https://abungo.pythonanywhere.com/get_data');
+        let param;
+        let myChart;
+        let labels = [];
+        let temperatureData = [];
+        let humidityData = [];
+        let pressureData = [];
+        let tem,hum,atm;
+
+        //options Change
+        function optionChanged(){
+            var ds = document.getElementById("ds");
+            var index = ds.selectedIndex;
+            var op = ds.options[index];
+
+           // url.searchParams.set("ds","3");
+            console.log(url);
+        }
+        //date changed
+        function handleDateChange(selectedDate){
+            url.searchParams.set("date",selectedDate);
+            fetch_data();
+        }
+        //Reset Date Input
+        function resetDate(){
+            var di=document.getElementById("dateInput");
+            di.value ='';
+            url.searchParams.delete("date");
+            fetch_data();
+        }
+        fetch_data();
+        var intervalId = setInterval(() =>
+            {
+                resetData();
+                fetch_data();
+            }
+            , 5000);
+
+        // Stop the interval after 5 seconds
+        /*
+            setTimeout(() => clearInterval(intervalId), 5000);
+            */
+        // Make a GET request
+        function fetch_data() {
+            fetch(url)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json(); // Parse the JSON in the response
+            })
+            .then(data => {
+                data.forEach((el, i)=> {
+                    if (i > 1) {
+                        let td = Math.abs(data[(i-1)][1]-data[i][1]);
+                        let hd = Math.abs(data[(i-1)][2]-data[i][2]);
+                        let pd = Math.abs(data[(i-1)][3]-data[i][3]);
+                        //if(td>0 || hd>0){
+                        labels.push(el[0].substring(11, 19));
+                        temperatureData.push(parseFloat(el[1]));
+                        humidityData.push(parseFloat(el[2]));
+                        pressureData.push(parseFloat(el[3]));
+                        tem = parseFloat(el[1]);
+                        hum = parseFloat(el[2]);
+                        atm = parseFloat(el[3]);
+                        // }
+                    }
+                });
+
+                if(myChart==null){
+                    drawChart();
+                    //draw progress bar
+                    drawProgressBar();
+                }else{
+                    myChart.data.labels = labels;
+                    myChart.data.datasets[0].data = temperatureData;
+                    myChart.data.datasets[1].data = humidityData;
+                    myChart.data.datasets[2].data = pressureData;
+                    myChart.update();
+                    //draw progress bar
+                   // drawProgressBar();
+                }
+                /*
+                // Assuming myChart is your Chart.js instance
+                myChart.data.datasets[1].hidden = true; // Hide the second dataset (index 1)
+                myChart.update(); // Update the chart
+                */
+            })
+            .catch(error => {
+                console.error('Error:',
+                    error);
+            });
+        }
+
+        function resetData(){
+            labels = [];
+            temperatureData = [];
+            humidityData = [];
+            pressureData = [];
+        }
+        function drawChart() {
+            const ctx = document.getElementById('myChart').getContext('2d');
+            myChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Temperature (°C)',
+                            data: temperatureData,
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            borderWidth: 1,
+                            fill: false,
+                            lineTension: 0.5
+                        },
+                        {
+                            label: 'Humidity (%)',
+                            data: humidityData,
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            borderWidth: 1,
+                            fill: false,
+                            lineTension: 0.5
+                        },
+                        {
+                            label: 'Atmospheric Pressure',
+                            data: pressureData,
+                            borderColor: 'rgba(54,255,255,1)',
+                            borderWidth: 1,
+                            fill: false,
+                            lineTension: 0.5
+                        }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    },
+                    animation: {
+                        duration: 1000,
+                        easing: 'easeInOutQuad'
+                        // other animation option
+                    },
+                    tooltips: {
+                        enabled: true,
+                        mode: 'nearest'
+                        // other tooltip options
+                    }
+                }
+            });
+        }
+
+        function drawProgressBar(){
+            var temp = new ProgressBar.Circle('#container_temp', {
+                strokeWidth: 6,
+                easing: 'easeInOut',
+                duration: 1400,
+                color: '#aeEAff',
+                trailColor: '#eee',
+                trailWidth: 1,
+            });
+            temp.animate(tem/100); // Number from 0.0 to 1.0
+            temp.setText(tem.toFixed(2)+"&degC");
+           // temp.set('color','#ff2323')
+
+            var humi = new ProgressBar.Circle('#container_humi', {
+                strokeWidth: 6,
+                easing: 'easeInOut',
+                duration: 1400,
+                color: '#aeEAff',
+                trailColor: '#eee',
+                trailWidth: 1,
+                text: {
+                    value: '{humidityData[1]} %'
+                }
+            });
+            humi.animate(hum/100); // Number from 0.0 to 1.0
+            humi.setText(hum.toFixed(2)+"%");
+            var atmp = new ProgressBar.Circle('#container_atmp', {
+                strokeWidth: 6,
+                easing: 'easeInOut',
+                duration: 1400,
+                color: '#aeEAff',
+                trailColor: '#eee',
+                trailWidth: 1,
+            });
+            atmp.animate(atm/1000); // Number from 0.0 to 1.0
+            atmp.setText(atm.toFixed(2)+"hPa");
+        }
+    </script>
+</body>
+</html>
